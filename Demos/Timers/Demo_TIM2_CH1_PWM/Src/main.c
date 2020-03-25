@@ -96,7 +96,14 @@ int main(void)
   MX_TIM2_Init();
 
   /* USER CODE BEGIN 2 */
-  HAL_TIM_OC_Start(&htim2, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim2,TIM_CHANNEL_1);
+
+  // changement du rapport cyclique : code bas niveau CMSIS
+  //TIM2->CCR1 = 2500-1;
+  // changement du rapport cyclique : code avec HAL
+  __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1,2499);
+
+
 
   /* USER CODE END 2 */
 
@@ -107,7 +114,6 @@ int main(void)
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
-
 
   }
   /* USER CODE END 3 */
@@ -168,7 +174,7 @@ static void MX_TIM2_Init(void)
   htim2.Instance = TIM2;
   htim2.Init.Prescaler = 480-1;
   htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim2.Init.Period = 20000-1;
+  htim2.Init.Period = 10000-1;
   htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
   if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
@@ -182,7 +188,7 @@ static void MX_TIM2_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-  if (HAL_TIM_OC_Init(&htim2) != HAL_OK)
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
@@ -194,11 +200,11 @@ static void MX_TIM2_Init(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-  sConfigOC.OCMode = TIM_OCMODE_TOGGLE;
-  sConfigOC.Pulse = 10000-1;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_LOW;
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 5000-1;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
   sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_OC_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
