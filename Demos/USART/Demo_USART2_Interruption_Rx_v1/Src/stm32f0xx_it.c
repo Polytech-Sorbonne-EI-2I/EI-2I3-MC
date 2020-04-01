@@ -36,7 +36,7 @@
 #include "stm32f0xx_it.h"
 
 /* USER CODE BEGIN 0 */
-extern volatile unsigned int CaractereRecu;
+extern volatile unsigned int FlagCaractereRecu;
 
 /* USER CODE END 0 */
 
@@ -134,25 +134,13 @@ void USART2_IRQHandler(void)
   /* USER CODE END USART2_IRQn 0 */
   //HAL_UART_IRQHandler(&huart2);
   /* USER CODE BEGIN USART2_IRQn 1 */
-	 if (USART2->ISR & (1<<5))
-		  {
-			  // lecture du caractere
-			  CaractereRecu = USART2->RDR;
 
-			 // traitement
-			 CaractereRecu++;
+	if (USART2->ISR & (1<<5))
+	{
 
-			 // transmission du caractere recu par scrutation
+		FlagCaractereRecu =1;
 
-			  while (!(USART2->ISR & (1 << 7)))
-			  {
-
-			  }
-
-			 USART2->TDR = CaractereRecu;
-
-		  }
-
+	}
 
   /* USER CODE END USART2_IRQn 1 */
 }
