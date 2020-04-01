@@ -94,11 +94,11 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_USART2_UART_Init();
-  activationInterruptionRx_USART();
+
 
   /* USER CODE BEGIN 2 */
   // activite la demande interruption de caractere recu
-
+  activationInterruptionRx_USART();
 
   /* USER CODE END 2 */
 
