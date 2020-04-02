@@ -45,26 +45,27 @@
 /* USER CODE END Includes */
 
 /* Private variables ---------------------------------------------------------*/
-UART_HandleTypeDef huart2;
+TIM_HandleTypeDef htim2;
+TIM_HandleTypeDef htim6;
 
 /* USER CODE BEGIN PV */
 /* Private variables ---------------------------------------------------------*/
-unsigned char MessageAccueil [] = "Bienvenu EI-2I3";
-
+volatile unsigned int DrapeauTick_100ms_TIM6;
+unsigned int RapportCyclique_Intensite_Led;
+unsigned int sensVariationIntensiteLed;
 
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_USART2_UART_Init(void);
+static void MX_TIM2_Init(void);
+static void MX_TIM6_Init(void);                                    
+void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
+                                
 
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
-void EnvoieCharactere (unsigned char Caractere);
-void Envoie_Message (unsigned char *charactere);
-unsigned char ReceptionCharactere (void);
-
 
 /* USER CODE END PFP */
 
@@ -76,7 +77,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	unsigned char CaractereRecu;
 
   /* USER CODE END 1 */
 
@@ -98,10 +98,14 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART2_UART_Init();
+  MX_TIM2_Init();
+  MX_TIM6_Init();
 
   /* USER CODE BEGIN 2 */
-  Envoie_Message (MessageAccueil);
+  HAL_TIM_Base_Start_IT(&htim6);
+  HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -111,10 +115,36 @@ int main(void)
   /* USER CODE END WHILE */
 
   /* USER CODE BEGIN 3 */
-	  CaractereRecu = ReceptionCharactere ();
-	  CaractereRecu++;
-	  EnvoieCharactere (CaractereRecu);
+	  if (DrapeauTick_100ms_TIM6==1)
+	  	  {
+	  		  DrapeauTick_100ms_TIM6=0;
+	  		  if (sensVariationIntensiteLed==0)
+	  		  {
+	  			  RapportCyclique_Intensite_Led++;
+	  			  // changement du rapport cyclique
+	  			  __HAL_TIM_SET_COMPARE (&htim2,TIM_CHANNEL_1, RapportCyclique_Intensite_Led);
 
+	  			 if (RapportCyclique_Intensite_Led ==199)  // Si on atteint le max (valeur de la periode)
+	  			  {
+	  				sensVariationIntensiteLed=1;         // changer de sens de variation
+
+	  		   	  }
+	  		  }
+
+	  		  else if (sensVariationIntensiteLed==1)
+	  		  {
+	  			 RapportCyclique_Intensite_Led--;
+	  			 // changement du rapport cyclique
+	  			__HAL_TIM_SET_COMPARE (&htim2,TIM_CHANNEL_1, RapportCyclique_Intensite_Led);
+	  			 if (RapportCyclique_Intensite_Led==0)
+	  			 {
+
+	  				sensVariationIntensiteLed=0;
+
+	  			 }
+	  		  }
+
+	  	  }
 
   }
   /* USER CODE END 3 */
@@ -128,7 +158,6 @@ void SystemClock_Config(void)
 
   RCC_OscInitTypeDef RCC_OscInitStruct;
   RCC_ClkInitTypeDef RCC_ClkInitStruct;
-  RCC_PeriphCLKInitTypeDef PeriphClkInit;
 
     /**Initializes the CPU, AHB and APB busses clocks 
     */
@@ -153,13 +182,6 @@ void SystemClock_Config(void)
     _Error_Handler(__FILE__, __LINE__);
   }
 
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_USART2;
-  PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    _Error_Handler(__FILE__, __LINE__);
-  }
-
     /**Configure the Systick interrupt time 
     */
   HAL_SYSTICK_Config(HAL_RCC_GetHCLKFreq()/1000);
@@ -172,21 +194,75 @@ void SystemClock_Config(void)
   HAL_NVIC_SetPriority(SysTick_IRQn, 0, 0);
 }
 
-/* USART2 init function */
-static void MX_USART2_UART_Init(void)
+/* TIM2 init function */
+static void MX_TIM2_Init(void)
 {
 
-  huart2.Instance = USART2;
-  huart2.Init.BaudRate = 9600;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
-  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
-  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
-  if (HAL_UART_Init(&huart2) != HAL_OK)
+  TIM_ClockConfigTypeDef sClockSourceConfig;
+  TIM_MasterConfigTypeDef sMasterConfig;
+  TIM_OC_InitTypeDef sConfigOC;
+
+  htim2.Instance = TIM2;
+  htim2.Init.Prescaler = 48-1;
+  htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim2.Init.Period = 200-1;
+  htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim2, &sClockSourceConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  if (HAL_TIM_PWM_Init(&htim2) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim2, &sMasterConfig) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sConfigOC.OCMode = TIM_OCMODE_PWM1;
+  sConfigOC.Pulse = 100-1;
+  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+  if (HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  HAL_TIM_MspPostInit(&htim2);
+
+}
+
+/* TIM6 init function */
+static void MX_TIM6_Init(void)
+{
+
+  TIM_MasterConfigTypeDef sMasterConfig;
+
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 480-1;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 10000-1;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    _Error_Handler(__FILE__, __LINE__);
+  }
+
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
   {
     _Error_Handler(__FILE__, __LINE__);
   }
@@ -205,106 +281,19 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
-/*===============================================================================
-  FUNCTION:     envoieCharatere(void)
-  DESCRIPTION:  Envoie caractère sur la liaison série
-  PARAMETERS:   Caractère
-  RETURNS:      rien
-  REQUIREMENTS: rien
-===============================================================================*/
-void EnvoieCharactere (unsigned char Caractere)
+/**
+  * @brief  Cette fonction est executer a chaque interruption de débordement des timers
+  * @param  Rien
+  * @retval Rien
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  USART2->TDR = Caractere;
-
-  while (!(USART2->ISR & 1<<7))
-  {
-	  /* tant que le bit b7 (TXE) du registre (USART2_ISR) est a  '0' on attend ici!  */
-  }
+	if (htim->Instance == TIM6)   // On verifi si c'est le timer TIM6 qui a demander l'interruption de débordement
+	{
+		// mise '1' de la variable globale pour synchroniser la routine d'interruption et la fonction main
+		DrapeauTick_100ms_TIM6 = 1;
+	}
 }
-
-/*===============================================================================
-  FUNCTION:     Envoie_Message(void)
-  DESCRIPTION:  Envoie caractère sur la liaison série
-  PARAMETERS:   pointeur Tableau de Caractères : Nom du Tableau
-  RETURNS:      rien
-  REQUIREMENTS: rien
-===============================================================================*/
-void Envoie_Message (unsigned char *charactere)
-{
-
-  while (*charactere != '\0' )
-  {
-    EnvoieCharactere(*charactere);
-    charactere ++;
-  }
-  EnvoieCharactere ('\r'); // Retour chariot
-}
-
-/*----------------------------------------------------------------------------
-   ReceptionCharatere
-  @brief  : Recois un charactère
-  @param  : rien
-  @retval : Caractere recu
-  effets de bords :
- *----------------------------------------------------------------------------*/
- unsigned char ReceptionCharactere (void)
- {
-   unsigned char CaractereRecu=0;
-
-   /* Attente que le registre de reception soit rempli par le code du caractere recu
-  	 scrutation du bit b5 (RXNE) du registre Interrupt & status register (USARTx_ISR)
-  	 si ce bit passe a '1' c'est que le caractere est recu
-  	*/
-  	 while (!(USART2->ISR & (1 << 5)))
-  	 {
-  		/* on reste dans cette boucle tant que le caracterse n'est pas arrivee
-  		    tant que bit  b5 (RXNE) du registre (USART2_ISR) vaut '0'
-  		*/
-  	}
-  	 /* Arriver ici signifie que le bit  b5 (RXNE) du registre (USART2_ISR) vaut '1' : donc on peux lire un autre caractÃ¨re */
-
-  	/* Lecture du caractere depuis le registre UCA0RXBUF
-  	   et sauvegarde du caractere recu	dans la variable Caractere_Recu
-  	*/
-   CaractereRecu = USART2->RDR;
-    return CaractereRecu;
- }
-
-
-
- /*----------------------------------------------------------------------------
-    ReceptionMessage
-   @brief  : Recois un charactère
-   @param  : rien
-   @retval : Caractere recu
-   effets de bords :
-  *----------------------------------------------------------------------------*/
-  unsigned char ReceptionMessage (void)
-  {
-    unsigned char CaractereRecu=0;
-
-    /* Attente que le registre de reception soit rempli par le code du caractere recu
-   	 scrutation du bit b5 (RXNE) du registre Interrupt & status register (USARTx_ISR)
-   	 si ce bit passe a '1' c'est que le caractere est recu
-   	*/
-   	 while (!(USART2->ISR & (1 << 5)))
-   	 {
-   		/* on reste dans cette boucle tant que le caracterse n'est pas arrivee
-   		    tant que bit  b5 (RXNE) du registre (USART2_ISR) vaut '0'
-   		*/
-   	}
-   	 /* Arriver ici signifie que le bit  b5 (RXNE) du registre (USART2_ISR) vaut '1' : donc on peux lire un autre caractÃ¨re */
-
-   	/* Lecture du caractere depuis le registre UCA0RXBUF
-   	   et sauvegarde du caractere recu	dans la variable Caractere_Recu
-   	*/
-    CaractereRecu = USART2->RDR;
-     return CaractereRecu;
-  }
-
-
-
-
 
 /* USER CODE END 4 */
 
